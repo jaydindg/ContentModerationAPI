@@ -15,6 +15,11 @@ struct IncomingReqBody {
     content: Option<String>,
 }
 
+/// Represents the incoming request query param containing the gawlix for replacing text.
+///
+/// # Fields
+///
+/// * `grawlix` - A query param `String` that holds the grawlix content.
 #[derive(Deserialize)]
 struct GrawlixQueryParams {
     grawlix: String,
