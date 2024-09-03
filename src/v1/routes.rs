@@ -3,18 +3,34 @@ use actix_web::{post, web, HttpResponse, Responder};
 use censor::*;
 use serde::Deserialize;
 
+const NO_CONTENT_STRING: &str = "No content sent to API.";
+
+/// Represents the incoming request body containing optional text content.
+///
+/// # Fields
+///
+/// * `content` - An optional `String` that holds the text content to be processed.
 #[derive(Deserialize)]
-pub struct IncomingReqBody {
-    pub content: Option<String>,
+struct IncomingReqBody {
+    content: Option<String>,
 }
 
+/// Asynchronously checks if the provided text contains profanity.
+///
+/// # Arguments
+///
+/// * `req_body` - A JSON object containing the text to be checked.
+///
+/// # Returns
+///
+/// * `HttpResponse` - Returns `true` if the text contains profanity, otherwise `false`.
 #[post("/api/v1/check-text")]
 pub async fn check_text(req_body: web::Json<IncomingReqBody>) -> impl Responder {
     // Returns Bool
     let content = req_body
         .content
         .clone()
-        .unwrap_or_else(|| "No content".to_string());
+        .unwrap_or_else(|| NO_CONTENT_STRING.to_string());
 
     let censor = Censor::Standard;
 
@@ -25,13 +41,22 @@ pub async fn check_text(req_body: web::Json<IncomingReqBody>) -> impl Responder 
     HttpResponse::Ok().json(false) // content does not have profanity, return false
 }
 
+/// Asynchronously censors any profanity in the provided text.
+///
+/// # Arguments
+///
+/// * `req_body` - A JSON object containing the text to be censored.
+///
+/// # Returns
+///
+/// * `HttpResponse` - Returns the censored text if profanity is found, otherwise returns the original text.
 #[post("/api/v1/censor-text")]
 pub async fn censor_text(req_body: web::Json<IncomingReqBody>) -> impl Responder {
     // Returns String
     let content = req_body
         .content
         .clone()
-        .unwrap_or_else(|| "No content".to_string());
+        .unwrap_or_else(|| NO_CONTENT_STRING.to_string());
 
     let censor = Censor::Standard;
 
@@ -42,3 +67,6 @@ pub async fn censor_text(req_body: web::Json<IncomingReqBody>) -> impl Responder
 
     HttpResponse::Ok().body(content) // content does not have profanity, return original
 }
+
+// Implement censor_replace
+// https://docs.rs/censor/latest/censor/

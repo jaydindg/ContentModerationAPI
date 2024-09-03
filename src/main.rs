@@ -3,7 +3,7 @@ mod v1 {
     pub mod routes;
 }
 
-use v1::routes::censor_text;
+use v1::routes;
 
 #[get("/")]
 async fn index() -> impl Responder {
@@ -12,8 +12,12 @@ async fn index() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(censor_text).service(index))
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
+    HttpServer::new(|| {
+        App::new()
+            .service(routes::censor_text)
+            .service(routes::check_text)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
