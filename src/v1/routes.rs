@@ -142,7 +142,7 @@ pub async fn replace_text(
     req_body: web::Json<IncomingReqBody>,
     grawlix_input: web::Query<GrawlixQueryParams>,
 ) -> impl Responder {
-    //
+    // Returns String
     let content = req_body
         .content
         .clone()
