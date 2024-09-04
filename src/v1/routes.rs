@@ -5,14 +5,24 @@ use serde::Deserialize;
 
 const NO_CONTENT_STRING: &str = "No content sent to API.";
 
-/// Represents the incoming request body containing optional text content.
+/// Represents the body of an incoming request.
 ///
-/// # Fields
+/// This struct is used to deserialize the JSON payload of an incoming request.
+/// It contains the following fields:
 ///
-/// * `content` - An optional `String` that holds the text content to be processed.
+/// * `content`: An optional string containing the general content to be reviewed.
+/// * `extra_filters`: An optional vector of strings specifying extra words that the user wants to be censored.
+/// * `excludes`: An optional vector of strings specifying words that the user does NOT want to be censored.
 #[derive(Deserialize)]
 struct IncomingReqBody {
+    /// General content being sent over to be reviewed.
     content: Option<String>,
+
+    /// Extra words the user wants to be censored.
+    extra_filters: Option<Vec<String>>,
+
+    /// Words the user does NOT want to be censored.
+    excludes: Option<Vec<String>>,
 }
 
 /// Represents the incoming request query param containing the gawlix for replacing text.
@@ -25,15 +35,21 @@ struct GrawlixQueryParams {
     grawlix: String,
 }
 
-/// Asynchronously checks if the provided text contains profanity.
+/// Handles POST requests to the `/api/v1/check-text` endpoint.
+///
+/// This asynchronous function processes incoming JSON requests containing text content to be reviewed for profanity.
+/// It uses the `IncomingReqBody` struct to deserialize the request body and applies additional filters and exclusions
+/// specified by the user. The function returns a JSON response indicating whether the content contains profanity.
 ///
 /// # Arguments
 ///
-/// * `req_body` - A JSON object containing the text to be checked.
+/// * `req_body`: A JSON payload containing the text content and optional filters and exclusions.
 ///
 /// # Returns
 ///
-/// * `HttpResponse` - Returns `true` if the text contains profanity, otherwise `false`.
+/// A JSON response with a boolean value:
+/// * `true` if the content contains profanity.
+/// * `false` if the content does not contain profanity.
 #[post("/api/v1/check-text")]
 pub async fn check_text(req_body: web::Json<IncomingReqBody>) -> impl Responder {
     // Returns Bool
@@ -42,7 +58,20 @@ pub async fn check_text(req_body: web::Json<IncomingReqBody>) -> impl Responder 
         .clone()
         .unwrap_or_else(|| NO_CONTENT_STRING.to_string());
 
-    let censor = Censor::Standard;
+    let extra_filters = req_body.extra_filters.clone().unwrap_or_else(|| vec![]);
+    let excludes = req_body.excludes.clone().unwrap_or_else(|| vec![]);
+
+    let mut censor = Censor::Standard;
+
+    for filter in extra_filters {
+        // Include extra words to be censored.
+        censor += filter.as_str();
+    }
+
+    for exclude in excludes {
+        // Remove extra words to be censored.
+        censor -= exclude.as_str();
+    }
 
     if censor.check(&content) {
         return HttpResponse::Ok().json(true); // content has profanity, return true
@@ -51,15 +80,18 @@ pub async fn check_text(req_body: web::Json<IncomingReqBody>) -> impl Responder 
     HttpResponse::Ok().json(false) // content does not have profanity, return false
 }
 
-/// Asynchronously censors any profanity in the provided text.
+/// Handles POST requests to the `/api/v1/censor-text` endpoint.
+///
+/// This asynchronous function processes the incoming JSON payload, which is deserialized into an `IncomingReqBody` struct.
+/// It censors the content based on the provided extra filters and excludes, and returns the censored content if any profanity is detected.
 ///
 /// # Arguments
 ///
-/// * `req_body` - A JSON object containing the text to be censored.
+/// * `req_body`: The JSON payload of the incoming request, deserialized into an `IncomingReqBody` struct.
 ///
 /// # Returns
 ///
-/// * `HttpResponse` - Returns the censored text if profanity is found, otherwise returns the original text.
+/// An `HttpResponse` containing the censored content if profanity is detected, or the original content if no profanity is found.
 #[post("/api/v1/censor-text")]
 pub async fn censor_text(req_body: web::Json<IncomingReqBody>) -> impl Responder {
     // Returns String
@@ -68,7 +100,20 @@ pub async fn censor_text(req_body: web::Json<IncomingReqBody>) -> impl Responder
         .clone()
         .unwrap_or_else(|| NO_CONTENT_STRING.to_string());
 
-    let censor = Censor::Standard;
+    let extra_filters = req_body.extra_filters.clone().unwrap_or_else(|| vec![]);
+    let excludes = req_body.excludes.clone().unwrap_or_else(|| vec![]);
+
+    let mut censor = Censor::Standard;
+
+    for filter in extra_filters {
+        // Include extra words to be censored.
+        censor += filter.as_str();
+    }
+
+    for exclude in excludes {
+        // Remove words to be censored.
+        censor -= exclude.as_str();
+    }
 
     if censor.check(&content) {
         let censored_content = censor.censor(&content);
@@ -78,19 +123,20 @@ pub async fn censor_text(req_body: web::Json<IncomingReqBody>) -> impl Responder
     HttpResponse::Ok().body(content) // content does not have profanity, return original
 }
 
-/// This function handles POST requests to the `/api/v1/replace-text` endpoint.
-/// It takes a JSON body and query parameters, processes the content, and returns
-/// a censored version of the text if any inappropriate content is found.
+/// Handles POST requests to the `/api/v1/replace-text` endpoint.
+///
+/// This asynchronous function processes the incoming JSON payload, which is deserialized into an `IncomingReqBody` struct,
+/// and a query parameter for grawlix input. It replaces the censored words in the content with the provided grawlix string.
 ///
 /// # Arguments
 ///
-/// * `req_body` - A JSON body containing the content to be processed.
-/// * `grawlix_input` - Query parameters containing the grawlix string to replace inappropriate content.
+/// * `req_body`: The JSON payload of the incoming request, deserialized into an `IncomingReqBody` struct.
+/// * `grawlix_input`: The query parameter containing the grawlix string to replace censored words.
 ///
 /// # Returns
 ///
-/// * `HttpResponse` - Returns an HTTP response with the processed content. If inappropriate content is found,
-/// it is replaced with the grawlix string. Otherwise, the original content is returned.
+/// An `HttpResponse` containing the content with censored words replaced by the grawlix string if profanity is detected,
+/// or the original content if no profanity is found.
 #[post("/api/v1/replace-text")]
 pub async fn replace_text(
     req_body: web::Json<IncomingReqBody>,
@@ -103,7 +149,20 @@ pub async fn replace_text(
         .unwrap_or_else(|| NO_CONTENT_STRING.to_string());
 
     let grawlix_clone = grawlix_input.grawlix.clone();
-    let censor = Censor::Standard;
+    let extra_filters = req_body.extra_filters.clone().unwrap_or_else(|| vec![]);
+    let excludes = req_body.excludes.clone().unwrap_or_else(|| vec![]);
+
+    let mut censor = Censor::Standard;
+
+    for filter in extra_filters {
+        // Include extra words to be censored.
+        censor += filter.as_str();
+    }
+
+    for exclude in excludes {
+        // Remove words to be censored.
+        censor -= exclude.as_str();
+    }
 
     if censor.check(&content) {
         let replaced_content = censor.replace(&content, &grawlix_clone);
